@@ -39,7 +39,10 @@ class MarketMakerBot:
             min_interval=config.getint('MarketMaker', 'TradeMinInterval'),
             max_interval=config.getint('MarketMaker', 'TradeMaxInterval'),
             min_amount=config.getdecimal('MarketMaker', 'TradeMinAmount'),
-            max_amount=config.getdecimal('MarketMaker', 'TradeMaxAmount')
+            max_amount=config.getdecimal('MarketMaker', 'TradeMaxAmount'),
+            amount_step=config.getdecimal('MarketMaker', 'TradeAmountStep'),
+            min_volume_24h=config.getdecimal('MarketMaker', 'MinTradeVolume24h'),
+            amount_deviation=config.getdecimal('MarketMaker', 'TradeAmountVariation')
         )
 
     def calculate_price_range(self, side, target_price_range, min_price_step):
@@ -213,9 +216,21 @@ class MarketMakerBot:
         # launch it
         return run_repeatedly(maintain_orders, interval, 'Orderbook-Generator')
 
-    def generate_random_trades(self, min_interval, max_interval, min_amount, max_amount):
+    def generate_random_trades(
+            self, min_interval, max_interval, min_amount, max_amount,
+            amount_step, min_volume_24h, amount_deviation
+    ):
         def make_a_trade():
-            amount = Decimal(random.randint(min_amount*100, max_amount*100)) / 100
+            interval_ev = (max_interval + min_interval) / 2
+            amount_ev = min_volume_24h * interval_ev / 24*60*60
+            amount = Decimal(
+                random.normalvariate(amount_ev, amount_deviation*amount_ev)
+            )
+            if amount < min_amount:
+                amount = min_amount
+            elif amount > max_amount:
+                amount = max_amount
+            amount = amount.quantize(amount_step)
             side = random.choice(['buy', 'sell'])
             logger.info('Random trade: {} {}', side, amount)
             result = self.api.order_create(
@@ -226,7 +241,9 @@ class MarketMakerBot:
             )
             if result is None:
                 logger.error('Failed to make a random trade')
-        return run_at_random_intervals(make_a_trade, min_interval, max_interval, 'Trades-Generator')
+        return run_at_random_intervals(
+            make_a_trade, min_interval, max_interval, 'Trades-Generator'
+        )
 
     def __del__(self):
         try:
