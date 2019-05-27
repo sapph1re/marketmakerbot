@@ -222,7 +222,7 @@ class MarketMakerBot:
     ):
         def make_a_trade():
             interval_ev = (max_interval + min_interval) / 2
-            amount_ev = min_volume_24h * interval_ev / 24*60*60
+            amount_ev = float(min_volume_24h) * interval_ev / 24*60*60
             amount = Decimal(
                 random.normalvariate(amount_ev, amount_deviation*amount_ev)
             )
