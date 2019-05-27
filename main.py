@@ -42,7 +42,7 @@ class MarketMakerBot:
             max_amount=config.getdecimal('MarketMaker', 'TradeMaxAmount'),
             amount_step=config.getdecimal('MarketMaker', 'TradeAmountStep'),
             min_volume_24h=config.getdecimal('MarketMaker', 'MinTradeVolume24h'),
-            amount_deviation=config.getdecimal('MarketMaker', 'TradeAmountVariation')
+            amount_deviation=config.getfloat('MarketMaker', 'TradeAmountVariation')
         )
 
     def calculate_price_range(self, side, target_price_range, min_price_step):
