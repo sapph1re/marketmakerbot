@@ -41,7 +41,7 @@ class MarketMakerBot:
             min_amount=config.getdecimal('MarketMaker', 'TradeMinAmount'),
             max_amount=config.getdecimal('MarketMaker', 'TradeMaxAmount'),
             amount_step=config.getdecimal('MarketMaker', 'TradeAmountStep'),
-            min_volume_24h=config.getdecimal('MarketMaker', 'MinTradeVolume24h'),
+            min_volume_24h=config.getfloat('MarketMaker', 'MinTradeVolume24h'),
             amount_deviation=config.getfloat('MarketMaker', 'TradeAmountVariation')
         )
 
@@ -222,7 +222,7 @@ class MarketMakerBot:
     ):
         def make_a_trade():
             interval_ev = (max_interval + min_interval) / 2
-            amount_ev = float(min_volume_24h) * interval_ev / 24*60*60
+            amount_ev = min_volume_24h * interval_ev / (24*60*60)
             amount = Decimal(
                 random.normalvariate(amount_ev, amount_deviation*amount_ev)
             )
