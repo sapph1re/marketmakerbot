@@ -290,10 +290,10 @@ class MarketMakerBot:
             best_price = Decimal(str(depth[depth_side][0][0]))
             # check the price limits
             if not min_price <= best_price <= max_price:
-                logger.error('Best price {} is beyond the limits: {} {}', best_price, min_price, max_price)
+                logger.error('Best price {:f} is beyond the limits: {:f} {:f}', best_price, min_price, max_price)
                 return
             # make a trade
-            logger.info('Random trade: {} {} @ {} IOC', side, amount, best_price)
+            logger.info('Random trade: {} {} @ {:f} IOC', side, amount, best_price)
             result = self.api.order_create(
                 currency_pair=self.currency_pair,
                 order_type='limit',
