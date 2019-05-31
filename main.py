@@ -112,7 +112,7 @@ class MarketMakerBot:
         def maintain_orders():
             # maintain the spread
             spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
-            logger.info('Calculated spread levels: {0:f} {0:f}', spread_bid, spread_ask)
+            logger.info('Calculated spread levels: {:f} {:f}', spread_bid, spread_ask)
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
             best_bid = Decimal(str(depth['bids'][0][0]))
             best_ask = Decimal(str(depth['asks'][0][0]))
@@ -122,7 +122,7 @@ class MarketMakerBot:
                 if min_order_amount * spread_bid < min_order_size:
                     min_amount = (min_order_size / spread_bid).quantize(amount_step)
                 amount = random_decimal(min_amount, min_order_amount*3, amount_step)
-                logger.info('Placing spread bid: {} @ {0:f}', amount, spread_bid)
+                logger.info('Placing spread bid: {} @ {:f}', amount, spread_bid)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
                     order_type='limit',
@@ -136,7 +136,7 @@ class MarketMakerBot:
                 if min_order_amount * spread_ask < min_order_size:
                     min_amount = (min_order_size / spread_bid).quantize(amount_step)
                 amount = random_decimal(min_amount, min_order_amount*3, amount_step)
-                logger.info('Placing spread ask: {} @ {0:f}', amount, spread_ask)
+                logger.info('Placing spread ask: {} @ {:f}', amount, spread_ask)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
                     order_type='limit',
