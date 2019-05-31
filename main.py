@@ -135,7 +135,7 @@ class MarketMakerBot:
                 # place an ask at spread_ask
                 min_amount = min_order_amount
                 if min_order_amount * spread_ask < min_order_size:
-                    min_amount = (min_order_size / spread_bid).quantize(amount_step)
+                    min_amount = (min_order_size / spread_ask).quantize(amount_step)
                 amount = random_decimal(min_amount, min_amount*3, amount_step)
                 logger.info('Placing spread ask: {} @ {:f}', amount, spread_ask)
                 self.api.order_create(
