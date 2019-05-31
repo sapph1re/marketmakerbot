@@ -72,17 +72,18 @@ class MarketMakerBot:
 
     def get_ref_price(self):
         # check reference price on Binance if it is present there
-        try:
-            symbol = self.currency_pair.replace('/', '')
-            r = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}').json()
-            if 'msg' in r and r['msg'] == 'Invalid symbol.':
-                logger.info('Symbol {} is not present on Binance', symbol)
-                # do not ask anymore
-                self.check_binance = False
-            else:
-                return Decimal(r['price'])
-        except Exception as e:
-            logger.info('Failed to load price from Binance: {}', e)
+        if self.check_binance:
+            try:
+                symbol = self.currency_pair.replace('/', '')
+                r = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}').json()
+                if 'msg' in r and r['msg'] == 'Invalid symbol.':
+                    logger.info('Symbol {} is not present on Binance', symbol)
+                    # do not ask anymore
+                    self.check_binance = False
+                else:
+                    return Decimal(r['price'])
+            except Exception as e:
+                logger.info('Failed to load price from Binance: {}', e)
         # otherwise just use our own last price
         last_price = Decimal(str(self.api.ticker(currency_pair=self.currency_pair)['last']))
         if last_price > 0:
@@ -93,6 +94,8 @@ class MarketMakerBot:
     def calculate_spread_levels(self, max_spread: Decimal, price_step: Decimal) -> tuple:
         ref_price = self.get_ref_price()
         spread_bid = (ref_price - max_spread / 2).quantize(price_step)
+        if spread_bid < price_step:
+            spread_bid = price_step
         spread_ask = (ref_price + max_spread / 2).quantize(price_step)
         return spread_bid, spread_ask
 
