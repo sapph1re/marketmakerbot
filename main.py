@@ -287,7 +287,7 @@ class MarketMakerBot:
             side = random.choice(['buy', 'sell'])
             # find the nearest price to execute a trade
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
-            depth_side = {'buy': 'bids', 'sell': 'asks'}[side]
+            depth_side = {'buy': 'asks', 'sell': 'bids'}[side]
             best_price = Decimal(str(depth[depth_side][0][0]))
             # check the price limits
             if not min_price <= best_price <= max_price:
