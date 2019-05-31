@@ -95,7 +95,7 @@ class MarketMakerBot:
         spread_bid = (ref_price - max_spread / 2).quantize(price_step)
         if spread_bid < price_step:
             spread_bid = price_step
-        spread_ask = (ref_price + max_spread / 2).quantize(price_step)
+        spread_ask = spread_bid + max_spread
         return spread_bid, spread_ask
 
     def generate_random_orderbook(self):
