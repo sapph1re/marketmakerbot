@@ -72,7 +72,7 @@ class StyleAdapter(logging.LoggerAdapter):
             self.logger._log(level, Message(msg, args), (), **kwargs)
 
 
-format_main_info = '{asctime}\t{levelname}\t[{filename}]\t{message}'
+format_main_info = '{asctime}\t{levelname}\t({threadName})\t[{filename}]\t{message}'
 log_formatter_info = GracefulFormatter(format_main_info)
 handler_console = logging.StreamHandler()
 handler_console.setLevel(logging.INFO)
