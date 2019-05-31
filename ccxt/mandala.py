@@ -812,7 +812,9 @@ class mandala (Exchange):
         data = self.safe_value(response, 'data')
         return self.parse_ohlcvs(data, market, timeframe, since, limit)
 
-    def create_order(self, symbol, type, side, amount, price=None, params={}):
+    def create_order(self, symbol, type, side, amount, price=None, params=None):
+        if params is None:
+            params = {}
         self.load_markets()
         market = self.market(symbol)
         orderPrice = price

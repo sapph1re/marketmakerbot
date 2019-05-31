@@ -32,9 +32,9 @@ class APIClient:
             limit = min(limits_allowed, key=lambda x: abs(x - limit))
         return self.api.fetch_order_book(currency_pair, limit=limit)
 
-    def order_create(self, currency_pair, order_type, side, amount, price=None):
+    def order_create(self, currency_pair, order_type, side, amount, price=None, params=None):
         try:
-            return self.api.create_order(currency_pair, order_type, side, amount, price)
+            return self.api.create_order(currency_pair, order_type, side, amount, price, params)
         except ccxt.errors.ExchangeError as e:
             logger.error('Failed to create order: {}', e)
             return None

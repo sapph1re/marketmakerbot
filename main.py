@@ -126,7 +126,9 @@ class MarketMakerBot:
             spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
             logger.info('Calculated spread levels: {} {}', spread_bid, spread_ask)
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
-            if spread_bid > Decimal(str(depth['bids'][0][0])):
+            best_bid = Decimal(str(depth['bids'][0][0]))
+            best_ask = Decimal(str(depth['asks'][0][0]))
+            if spread_bid > best_bid:
                 # place a bid at spread_bid
                 amount = random_decimal(min_order_amount, min_order_amount*3, amount_step)
                 logger.info('Placing spread bid: {} @ {}', amount, spread_bid)
@@ -137,7 +139,7 @@ class MarketMakerBot:
                     amount=amount,
                     price=spread_bid
                 )
-            if spread_ask < Decimal(str(depth['asks'][0][0])):
+            if spread_ask < best_ask:
                 # place an ask at spread_ask
                 amount = random_decimal(min_order_amount, min_order_amount*3, amount_step)
                 logger.info('Placing spread ask: {} @ {}', amount, spread_ask)
@@ -280,12 +282,19 @@ class MarketMakerBot:
                 amount = max_amount
             amount = amount.quantize(amount_step)
             side = random.choice(['buy', 'sell'])
-            logger.info('Random trade: {} {}', side, amount)
+            # find the nearest price to execute a trade
+            depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
+            depth_side = {'buy': 'bids', 'sell': 'asks'}[side]
+            best_price = Decimal(str(depth[depth_side][0][0]))
+            # make a trade
+            logger.info('Random trade: {} {} @ {} IOC', side, amount, best_price)
             result = self.api.order_create(
                 currency_pair=self.currency_pair,
-                order_type='market',
+                order_type='limit',
                 side=side,
-                amount=amount
+                amount=amount,
+                price=best_price,
+                params={'timeInForce': 'IOC'}
             )
             if result is None:
                 logger.error('Failed to make a random trade')
