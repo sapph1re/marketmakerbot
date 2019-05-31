@@ -262,12 +262,12 @@ class MarketMakerBot:
         return run_repeatedly(maintain_orders, interval, 'Orderbook-Generator')
 
     def generate_random_trades(self):
-        min_interval = config.getint('MarketMaker', 'TradeMinInterval'),
-        max_interval = config.getint('MarketMaker', 'TradeMaxInterval'),
-        min_amount = config.getdecimal('MarketMaker', 'TradeMinAmount'),
-        max_amount = config.getdecimal('MarketMaker', 'TradeMaxAmount'),
-        amount_step = config.getdecimal('MarketMaker', 'TradeAmountStep'),
-        min_volume_24h = config.getfloat('MarketMaker', 'MinTradeVolume24h'),
+        min_interval = config.getint('MarketMaker', 'TradeMinInterval')
+        max_interval = config.getint('MarketMaker', 'TradeMaxInterval')
+        min_amount = config.getdecimal('MarketMaker', 'TradeMinAmount')
+        max_amount = config.getdecimal('MarketMaker', 'TradeMaxAmount')
+        amount_step = config.getdecimal('MarketMaker', 'TradeAmountStep')
+        min_volume_24h = config.getfloat('MarketMaker', 'MinTradeVolume24h')
         amount_deviation = config.getfloat('MarketMaker', 'TradeAmountVariation')
         max_price = config.getdecimal('MarketMaker', 'TradeMaxPrice')
         min_price = config.getdecimal('MarketMaker', 'TradeMinPrice')
