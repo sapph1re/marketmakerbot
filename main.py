@@ -21,6 +21,9 @@ class MarketMakerBot:
         self.currency_pair = currency_pair
         self.check_binance = True
 
+        self.min_order_size = config.getdecimal('MarketMaker', 'MinOrderSize')
+        self.amount_step = config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
+
         logger.info('Market Maker Bot started')
         self.stop_event_orderbook = self.generate_random_orderbook()
         # bot will start making trades <StartTradesDelay> seconds after it started placing orders
@@ -98,6 +101,11 @@ class MarketMakerBot:
         spread_ask = spread_bid + max_spread
         return spread_bid, spread_ask
 
+    def respect_order_size(self, amount: Decimal, price: Decimal) -> Decimal:
+        if amount * price < self.min_order_size:
+            return (self.min_order_size / price).quantize(self.amount_step)
+        return amount
+
     def generate_random_orderbook(self):
         interval = config.getint('MarketMaker', 'OrderbookUpdateInterval')
         max_spread = config.getdecimal('MarketMaker', 'OrderbookMaxSpread')
@@ -106,8 +114,6 @@ class MarketMakerBot:
         target_price_range = config.getdecimal('MarketMaker', 'OrderbookPriceRange')
         price_step = config.getdecimal('MarketMaker', 'OrderbookPriceStep')
         min_order_amount = config.getdecimal('MarketMaker', 'OrderbookMinOrderAmount')
-        amount_step = config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
-        min_order_size = config.getdecimal('MarketMaker', 'MinOrderSize')
 
         def maintain_orders():
             # maintain the spread
@@ -119,10 +125,8 @@ class MarketMakerBot:
             logger.info('Actual spread right now: {:f} {:f}', best_bid, best_ask)
             if spread_bid > best_bid:
                 # place a bid at spread_bid
-                min_amount = min_order_amount
-                if min_order_amount * spread_bid < min_order_size:
-                    min_amount = (min_order_size / spread_bid).quantize(amount_step)
-                amount = random_decimal(min_amount, min_amount*3, amount_step)
+                min_amount = self.respect_order_size(min_order_amount, spread_bid)
+                amount = random_decimal(min_amount, min_amount*3, self.amount_step)
                 logger.info('Placing spread bid: {} @ {:f}', amount, spread_bid)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
@@ -133,10 +137,8 @@ class MarketMakerBot:
                 )
             if spread_ask < best_ask:
                 # place an ask at spread_ask
-                min_amount = min_order_amount
-                if min_order_amount * spread_ask < min_order_size:
-                    min_amount = (min_order_size / spread_ask).quantize(amount_step)
-                amount = random_decimal(min_amount, min_amount*3, amount_step)
+                min_amount = self.respect_order_size(min_order_amount, spread_ask)
+                amount = random_decimal(min_amount, min_amount*3, self.amount_step)
                 logger.info('Placing spread ask: {} @ {:f}', amount, spread_ask)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
@@ -157,7 +159,7 @@ class MarketMakerBot:
                 if orderbook_volume >= max_orderbook_volume:
                     continue
                 # if volume is not enough place some orders
-                target_orderbook_volume = random_decimal(min_orderbook_volume, max_orderbook_volume, amount_step)
+                target_orderbook_volume = random_decimal(min_orderbook_volume, max_orderbook_volume, self.amount_step)
                 logger.debug('Target random orderbook volume ({}): {}', side, target_orderbook_volume)
                 volume_to_add = target_orderbook_volume - orderbook_volume
                 if volume_to_add > min_order_amount:
@@ -171,7 +173,8 @@ class MarketMakerBot:
                         # choose a random price within the range
                         price = random_decimal(price_min, price_max, price_step)
                         # choose a random amount
-                        amount = random_decimal(min_order_amount, volume_to_add, amount_step)
+                        min_amount = self.respect_order_size(min_order_amount, price)
+                        amount = random_decimal(min_amount, volume_to_add, self.amount_step)
                         # place the order
                         logger.info('Creating random order: {} {} @ {}', order_side, amount, price)
                         self.api.order_create(
@@ -266,12 +269,10 @@ class MarketMakerBot:
         max_interval = config.getint('MarketMaker', 'TradeMaxInterval')
         min_amount = config.getdecimal('MarketMaker', 'TradeMinAmount')
         max_amount = config.getdecimal('MarketMaker', 'TradeMaxAmount')
-        amount_step = config.getdecimal('MarketMaker', 'TradeAmountStep')
         min_volume_24h = config.getfloat('MarketMaker', 'MinTradeVolume24h')
         amount_deviation = config.getfloat('MarketMaker', 'TradeAmountVariation')
         max_price = config.getdecimal('MarketMaker', 'TradeMaxPrice')
         min_price = config.getdecimal('MarketMaker', 'TradeMinPrice')
-        min_order_size = config.getdecimal('MarketMaker', 'MinOrderSize')
 
         def make_a_trade():
             interval_ev = (max_interval + min_interval) / 2
@@ -283,7 +284,7 @@ class MarketMakerBot:
                 amount = min_amount
             elif amount > max_amount:
                 amount = max_amount
-            amount = amount.quantize(amount_step)
+            amount = amount.quantize(self.amount_step)
             side = random.choice(['buy', 'sell'])
             # find the nearest price to execute a trade
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
@@ -293,8 +294,7 @@ class MarketMakerBot:
             if not min_price <= best_price <= max_price:
                 logger.error('Best price {:f} is beyond the limits: {:f} {:f}', best_price, min_price, max_price)
                 return
-            if amount * best_price < min_order_size:
-                amount = (min_order_size / best_price).quantize(amount_step)
+            amount = self.respect_order_size(amount, best_price)
             # make a trade
             logger.info('Random trade: {} {} @ {:f} IOC', side, amount, best_price)
             result = self.api.order_create(
