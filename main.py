@@ -29,15 +29,7 @@ class MarketMakerBot:
         self.stop_event_orderbook = self.generate_random_orderbook()
         # bot will start making trades <StartTradesDelay> seconds after it started placing orders
         time.sleep(config.getint('MarketMaker', 'StartTradesDelay'))
-        self.stop_event_trades = self.generate_random_trades(
-            min_interval=config.getint('MarketMaker', 'TradeMinInterval'),
-            max_interval=config.getint('MarketMaker', 'TradeMaxInterval'),
-            min_amount=config.getdecimal('MarketMaker', 'TradeMinAmount'),
-            max_amount=config.getdecimal('MarketMaker', 'TradeMaxAmount'),
-            amount_step=config.getdecimal('MarketMaker', 'TradeAmountStep'),
-            min_volume_24h=config.getfloat('MarketMaker', 'MinTradeVolume24h'),
-            amount_deviation=config.getfloat('MarketMaker', 'TradeAmountVariation')
-        )
+        self.stop_event_trades = self.generate_random_trades()
 
     def calculate_price_range(self, side, target_price_range, min_price_step):
         # get current bid, ask, last price
@@ -265,10 +257,16 @@ class MarketMakerBot:
         # launch it
         return run_repeatedly(maintain_orders, interval, 'Orderbook-Generator')
 
-    def generate_random_trades(
-            self, min_interval, max_interval, min_amount, max_amount,
-            amount_step, min_volume_24h, amount_deviation
-    ):
+    def generate_random_trades(self):
+        min_interval = config.getint('MarketMaker', 'TradeMinInterval'),
+        max_interval = config.getint('MarketMaker', 'TradeMaxInterval'),
+        min_amount = config.getdecimal('MarketMaker', 'TradeMinAmount'),
+        max_amount = config.getdecimal('MarketMaker', 'TradeMaxAmount'),
+        amount_step = config.getdecimal('MarketMaker', 'TradeAmountStep'),
+        min_volume_24h = config.getfloat('MarketMaker', 'MinTradeVolume24h'),
+        amount_deviation = config.getfloat('MarketMaker', 'TradeAmountVariation')
+        max_price = config.getdecimal('MarketMaker', 'TradeMaxPrice')
+        min_price = config.getdecimal('MarketMaker', 'TradeMinPrice')
 
         def make_a_trade():
             interval_ev = (max_interval + min_interval) / 2
@@ -286,6 +284,10 @@ class MarketMakerBot:
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
             depth_side = {'buy': 'bids', 'sell': 'asks'}[side]
             best_price = Decimal(str(depth[depth_side][0][0]))
+            # check the price limits
+            if not min_price <= best_price <= max_price:
+                logger.error('Best price {} is beyond the limits: {} {}', best_price, min_price, max_price)
+                return
             # make a trade
             logger.info('Random trade: {} {} @ {} IOC', side, amount, best_price)
             result = self.api.order_create(
