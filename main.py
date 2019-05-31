@@ -271,6 +271,7 @@ class MarketMakerBot:
         amount_deviation = config.getfloat('MarketMaker', 'TradeAmountVariation')
         max_price = config.getdecimal('MarketMaker', 'TradeMaxPrice')
         min_price = config.getdecimal('MarketMaker', 'TradeMinPrice')
+        min_order_size = config.getdecimal('MarketMaker', 'MinOrderSize')
 
         def make_a_trade():
             interval_ev = (max_interval + min_interval) / 2
@@ -292,6 +293,8 @@ class MarketMakerBot:
             if not min_price <= best_price <= max_price:
                 logger.error('Best price {:f} is beyond the limits: {:f} {:f}', best_price, min_price, max_price)
                 return
+            if amount * best_price < min_order_size:
+                amount = (min_order_size / best_price).quantize(amount_step)
             # make a trade
             logger.info('Random trade: {} {} @ {:f} IOC', side, amount, best_price)
             result = self.api.order_create(
