@@ -1,7 +1,6 @@
 import random
 import time
 import requests
-import json
 from config import config
 from helper import run_repeatedly, run_at_random_intervals
 from api_client import APIClient
@@ -108,18 +107,22 @@ class MarketMakerBot:
         price_step = config.getdecimal('MarketMaker', 'OrderbookPriceStep')
         min_order_amount = config.getdecimal('MarketMaker', 'OrderbookMinOrderAmount')
         amount_step = config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
+        min_order_size = config.getdecimal('MarketMaker', 'MinOrderSize')
 
         def maintain_orders():
             # maintain the spread
             spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
-            logger.info('Calculated spread levels: {} {}', spread_bid, spread_ask)
+            logger.info('Calculated spread levels: {0:f} {0:f}', spread_bid, spread_ask)
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
             best_bid = Decimal(str(depth['bids'][0][0]))
             best_ask = Decimal(str(depth['asks'][0][0]))
             if spread_bid > best_bid:
                 # place a bid at spread_bid
-                amount = random_decimal(min_order_amount, min_order_amount*3, amount_step)
-                logger.info('Placing spread bid: {} @ {}', amount, spread_bid)
+                min_amount = min_order_amount
+                if min_order_amount * spread_bid < min_order_size:
+                    min_amount = (min_order_size / spread_bid).quantize(amount_step)
+                amount = random_decimal(min_amount, min_order_amount*3, amount_step)
+                logger.info('Placing spread bid: {} @ {0:f}', amount, spread_bid)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
                     order_type='limit',
@@ -129,8 +132,11 @@ class MarketMakerBot:
                 )
             if spread_ask < best_ask:
                 # place an ask at spread_ask
-                amount = random_decimal(min_order_amount, min_order_amount*3, amount_step)
-                logger.info('Placing spread ask: {} @ {}', amount, spread_ask)
+                min_amount = min_order_amount
+                if min_order_amount * spread_ask < min_order_size:
+                    min_amount = (min_order_size / spread_bid).quantize(amount_step)
+                amount = random_decimal(min_amount, min_order_amount*3, amount_step)
+                logger.info('Placing spread ask: {} @ {0:f}', amount, spread_ask)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
                     order_type='limit',
