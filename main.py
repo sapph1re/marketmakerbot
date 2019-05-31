@@ -317,7 +317,7 @@ class MarketMakerBot:
         except AttributeError:
             pass
         time.sleep(1)  # let the threads complete
-        logger.info('Trader bot stopped')
+        logger.info('Market Maker Bot stopped')
 
 
 if __name__ == '__main__':
