@@ -18,9 +18,6 @@ def random_decimal(minimum, maximum, step):
 
 class MarketMakerBot:
     def __init__(self, currency_pair):
-        self.traction_rate_up = config.getdecimal('MarketMaker', 'TractionRateUp')
-        self.traction_rate_down = config.getdecimal('MarketMaker', 'TractionRateDown')
-        self.attractor_price = config.getdecimal('MarketMaker', 'AttractorPrice')
         self.api = APIClient()
         self.currency_pair = currency_pair
         self.check_binance = True
@@ -54,10 +51,8 @@ class MarketMakerBot:
             elif last_price > 0:
                 price_max = last_price - min_price_step
             if price_max is None:
-                price_max = self.attractor_price
+                price_max = self.get_ref_price()
             price_min = price_max / (Decimal(1) + target_price_range)
-            if price_max > self.attractor_price:
-                price_max -= (price_max - price_min) * self.traction_rate_down * (price_max / self.attractor_price)
         if side == 'asks':
             if best_bid is not None:
                 price_min = best_bid + min_price_step
@@ -66,10 +61,8 @@ class MarketMakerBot:
             elif last_price > 0:
                 price_min = last_price + min_price_step
             if price_min is None:
-                price_min = self.attractor_price
+                price_min = self.get_ref_price()
             price_max = price_min * (Decimal(1) + target_price_range)
-            if price_min < self.attractor_price:
-                price_min += (price_max - price_min) * self.traction_rate_up * (self.attractor_price / price_min)
         if price_min is None and price_max is None:
             price_min = min_price_step
             price_max = price_min * 1000
