@@ -25,7 +25,7 @@ class APIClient:
     def ticker(self, currency_pair):
         return self.api.fetch_ticker(currency_pair)
 
-    def depth(self, currency_pair, limit=None):
+    def depth(self, currency_pair, limit=100):
         limits_allowed = [5, 10, 20, 50, 100, 500, 1000]
         if limit not in limits_allowed:
             # finding nearest allowed value

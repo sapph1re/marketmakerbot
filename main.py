@@ -1,5 +1,7 @@
 import random
 import time
+import requests
+import json
 from config import config
 from helper import run_repeatedly, run_at_random_intervals
 from api_client import APIClient
@@ -21,18 +23,10 @@ class MarketMakerBot:
         self.attractor_price = config.getdecimal('MarketMaker', 'AttractorPrice')
         self.api = APIClient()
         self.currency_pair = currency_pair
+        self.check_binance = True
 
         logger.info('Market Maker Bot started')
-        orderbook_interval = config.getint('MarketMaker', 'OrderbookUpdateInterval')
-        self.stop_event_orderbook = self.generate_random_orderbook(
-            interval=orderbook_interval,
-            min_orderbook_volume=config.getdecimal('MarketMaker', 'OrderbookMinVolume'),
-            max_orderbook_volume=config.getdecimal('MarketMaker', 'OrderbookMaxVolume'),
-            target_price_range=config.getdecimal('MarketMaker', 'OrderbookPriceRange'),
-            min_price_step=config.getdecimal('MarketMaker', 'OrderbookPriceStep'),
-            min_order_amount=config.getdecimal('MarketMaker', 'OrderbookMinOrderAmount'),
-            min_amount_step=config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
-        )
+        self.stop_event_orderbook = self.generate_random_orderbook()
         # bot will start making trades <StartTradesDelay> seconds after it started placing orders
         time.sleep(config.getint('MarketMaker', 'StartTradesDelay'))
         self.stop_event_trades = self.generate_random_trades(
@@ -91,29 +85,81 @@ class MarketMakerBot:
             price_min += min_price_step
         return price_min, price_max
 
-    # runs every <interval> seconds
-    # <decimal> min_orderbook_volume: minimal size of the orderbook on each side (bid/ask) to maintain
-    # <decimal> max_orderbook_volume: maximal size of the orderbook on each side (bid/ask) to maintain
-    # <decimal> target_price_range: relative value, the neighbourhood around the current market prices within which orders will be placed
-    # note: as the price shifts up and down, orders will spread farther than the neighbourhood of the initial price
-    # so target_price_range doesn't set a fixed price range, instead it regulates the price volatility
-    # <decimal> min_price_step: minimal price variation
-    # <decimal> min_order_amount: minimal amount for every single order
-    # <decimal> min_amount_step: minimal order amount variation
-    def generate_random_orderbook(self, interval, min_orderbook_volume, max_orderbook_volume, target_price_range, min_price_step, min_order_amount, min_amount_step):
+    def get_ref_price(self):
+        # check reference price on Binance if it is present there
+        try:
+            symbol = self.currency_pair.replace('/', '')
+            r = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}').json()
+            if 'msg' in r and r['msg'] == 'Invalid symbol.':
+                logger.info('Symbol {} is not present on Binance', symbol)
+                # do not ask anymore
+                self.check_binance = False
+            else:
+                return Decimal(r['price'])
+        except Exception as e:
+            logger.info('Failed to load price from Binance: {}', e)
+        # otherwise just use our own last price
+        last_price = Decimal(str(self.api.ticker(currency_pair=self.currency_pair)['last']))
+        if last_price > 0:
+            return last_price
+        # if we had no trades here yet, get price from config
+        return config.getdecimal('MarketMaker', 'StartPrice')
+
+    def calculate_spread_levels(self, max_spread: Decimal, price_step: Decimal) -> tuple:
+        ref_price = self.get_ref_price()
+        spread_bid = (ref_price - max_spread / 2).quantize(price_step)
+        spread_ask = (ref_price + max_spread / 2).quantize(price_step)
+        return spread_bid, spread_ask
+
+    def generate_random_orderbook(self):
+        interval = config.getint('MarketMaker', 'OrderbookUpdateInterval')
+        max_spread = config.getdecimal('MarketMaker', 'OrderbookMaxSpread')
+        min_orderbook_volume = config.getdecimal('MarketMaker', 'OrderbookMinVolume')
+        max_orderbook_volume = config.getdecimal('MarketMaker', 'OrderbookMaxVolume')
+        target_price_range = config.getdecimal('MarketMaker', 'OrderbookPriceRange')
+        price_step = config.getdecimal('MarketMaker', 'OrderbookPriceStep')
+        min_order_amount = config.getdecimal('MarketMaker', 'OrderbookMinOrderAmount')
+        amount_step = config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
+
         def maintain_orders():
-            # on each side
-            # processing randomly first bids then asks or first asks then bids
+            # maintain the spread
+            spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
+            logger.info('Calculated spread levels: {} {}', spread_bid, spread_ask)
+            depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
+            if spread_bid > Decimal(str(depth['bids'][0][0])):
+                # place a bid at spread_bid
+                amount = random_decimal(min_order_amount, min_order_amount*3, amount_step)
+                logger.info('Placing spread bid: {} @ {}', amount, spread_bid)
+                self.api.order_create(
+                    currency_pair=self.currency_pair,
+                    order_type='limit',
+                    side='buy',
+                    amount=amount,
+                    price=spread_bid
+                )
+            if spread_ask < Decimal(str(depth['asks'][0][0])):
+                # place an ask at spread_ask
+                amount = random_decimal(min_order_amount, min_order_amount*3, amount_step)
+                logger.info('Placing spread ask: {} @ {}', amount, spread_ask)
+                self.api.order_create(
+                    currency_pair=self.currency_pair,
+                    order_type='limit',
+                    side='sell',
+                    amount=amount,
+                    price=spread_ask
+                )
+            # get the orderbook now
             depth = self.api.depth(currency_pair=self.currency_pair, limit=100)
+            # processing randomly first bids then asks or first asks then bids
             for side in random.choice([['bids', 'asks'], ['asks', 'bids']]):
                 # check orderbook volume
                 orderbook_volume = 0
                 for level in depth[side]:
-                    orderbook_volume += Decimal(level[1])
+                    orderbook_volume += Decimal(str(level[1]))
                 if orderbook_volume >= max_orderbook_volume:
                     continue
                 # if volume is not enough place some orders
-                target_orderbook_volume = random_decimal(min_orderbook_volume, max_orderbook_volume, min_amount_step)
+                target_orderbook_volume = random_decimal(min_orderbook_volume, max_orderbook_volume, amount_step)
                 logger.debug('Target random orderbook volume ({}): {}', side, target_orderbook_volume)
                 volume_to_add = target_orderbook_volume - orderbook_volume
                 if volume_to_add > min_order_amount:
@@ -123,11 +169,11 @@ class MarketMakerBot:
                         elif side == 'asks':
                             order_side = 'sell'
                         # calculate the price range to operate within
-                        price_min, price_max = self.calculate_price_range(side, target_price_range, min_price_step)
+                        price_min, price_max = self.calculate_price_range(side, target_price_range, price_step)
                         # choose a random price within the range
-                        price = random_decimal(price_min, price_max, min_price_step)
+                        price = random_decimal(price_min, price_max, price_step)
                         # choose a random amount
-                        amount = random_decimal(min_order_amount, volume_to_add, min_amount_step)
+                        amount = random_decimal(min_order_amount, volume_to_add, amount_step)
                         # place the order
                         logger.info('Creating random order: {} {} @ {}', order_side, amount, price)
                         self.api.order_create(
@@ -213,6 +259,7 @@ class MarketMakerBot:
                     order_id=highest_ask_order['id'],
                     side=highest_ask_order['info']['side']
                 )
+
         # launch it
         return run_repeatedly(maintain_orders, interval, 'Orderbook-Generator')
 
@@ -220,6 +267,7 @@ class MarketMakerBot:
             self, min_interval, max_interval, min_amount, max_amount,
             amount_step, min_volume_24h, amount_deviation
     ):
+
         def make_a_trade():
             interval_ev = (max_interval + min_interval) / 2
             amount_ev = min_volume_24h * interval_ev / (24*60*60)
@@ -241,6 +289,7 @@ class MarketMakerBot:
             )
             if result is None:
                 logger.error('Failed to make a random trade')
+
         return run_at_random_intervals(
             make_a_trade, min_interval, max_interval, 'Trades-Generator'
         )
