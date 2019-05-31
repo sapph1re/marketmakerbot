@@ -116,12 +116,13 @@ class MarketMakerBot:
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
             best_bid = Decimal(str(depth['bids'][0][0]))
             best_ask = Decimal(str(depth['asks'][0][0]))
+            logger.info('Actual spread right now: {:f} {:f}', best_bid, best_ask)
             if spread_bid > best_bid:
                 # place a bid at spread_bid
                 min_amount = min_order_amount
                 if min_order_amount * spread_bid < min_order_size:
                     min_amount = (min_order_size / spread_bid).quantize(amount_step)
-                amount = random_decimal(min_amount, min_order_amount*3, amount_step)
+                amount = random_decimal(min_amount, min_amount*3, amount_step)
                 logger.info('Placing spread bid: {} @ {:f}', amount, spread_bid)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
@@ -135,7 +136,7 @@ class MarketMakerBot:
                 min_amount = min_order_amount
                 if min_order_amount * spread_ask < min_order_size:
                     min_amount = (min_order_size / spread_bid).quantize(amount_step)
-                amount = random_decimal(min_amount, min_order_amount*3, amount_step)
+                amount = random_decimal(min_amount, min_amount*3, amount_step)
                 logger.info('Placing spread ask: {} @ {:f}', amount, spread_ask)
                 self.api.order_create(
                     currency_pair=self.currency_pair,
@@ -144,6 +145,7 @@ class MarketMakerBot:
                     amount=amount,
                     price=spread_ask
                 )
+            logger.info('Checking orderbook volume...')
             # get the orderbook now
             depth = self.api.depth(currency_pair=self.currency_pair, limit=100)
             # processing randomly first bids then asks or first asks then bids
