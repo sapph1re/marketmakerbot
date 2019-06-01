@@ -174,9 +174,12 @@ class MarketMakerBot:
                         price = random_decimal(price_min, price_max, price_step)
                         # choose a random amount
                         min_amount = self.respect_order_size(min_order_amount, price)
-                        amount = random_decimal(min_amount, volume_to_add, self.amount_step)
+                        if volume_to_add <= min_amount:
+                            amount = min_amount
+                        else:
+                            amount = random_decimal(min_amount, volume_to_add, self.amount_step)
                         # place the order
-                        logger.info('Creating random order: {} {} @ {}', order_side, amount, price)
+                        logger.info('Creating random order: {} {} @ {:f}', order_side, amount, price)
                         self.api.order_create(
                             currency_pair=self.currency_pair,
                             order_type='limit',
@@ -237,7 +240,7 @@ class MarketMakerBot:
             if my_bids_volume > max_orderbook_volume:
                 # too much volume on bids, remove the lowest bid
                 logger.info(
-                    'Removing lowest bid: {} {} @ {}',
+                    'Removing lowest bid: {} {} @ {:f}',
                     lowest_bid_order['info']['side'],
                     Decimal(str(lowest_bid_order['amount'])),
                     Decimal(str(lowest_bid_order['price']))
@@ -250,7 +253,7 @@ class MarketMakerBot:
             if my_asks_volume > max_orderbook_volume:
                 # too much volume on asks, remove the highest ask
                 logger.info(
-                    'Removing highest ask: {} {} @ {}',
+                    'Removing highest ask: {} {} @ {:f}',
                     highest_ask_order['info']['side'],
                     Decimal(str(highest_ask_order['amount'])),
                     Decimal(str(highest_ask_order['price']))
