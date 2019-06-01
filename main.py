@@ -1,12 +1,23 @@
 import random
 import time
 import requests
+import argparse
 from config import config
 from helper import run_repeatedly, run_at_random_intervals
 from api_client import APIClient
 from decimal import Decimal
 from custom_logging import get_logger
 logger = get_logger(__name__)
+
+ap = argparse.ArgumentParser()
+ap.add_argument('-c', dest='config_file')
+args = ap.parse_args()
+
+config_file = args.config_file
+if config_file is None:
+    config_file = 'config.ini'
+
+config.read(config_file)
 
 
 def random_decimal(minimum, maximum, step):
@@ -200,7 +211,7 @@ class MarketMakerBot:
                             if order_amount < -volume_to_add:
                                 found = True
                                 logger.info(
-                                    'Removing random order: {} {} {} {} @ {} (#{})',
+                                    'Removing random order: {} {} {} {} @ {:f} (#{})',
                                     order['type'], order['info']['side'], order['amount'],
                                     order['symbol'], Decimal(str(order['price'])), order['id']
                                 )
