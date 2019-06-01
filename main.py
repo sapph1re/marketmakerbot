@@ -131,10 +131,10 @@ class MarketMakerBot:
             spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
             logger.info('Calculated spread levels: {:f} {:f}', spread_bid, spread_ask)
             depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
-            best_bid = Decimal(str(depth['bids'][0][0]))
-            best_ask = Decimal(str(depth['asks'][0][0]))
+            best_bid = Decimal(str(depth['bids'][0][0])) if len(depth['bids']) > 0 else None
+            best_ask = Decimal(str(depth['asks'][0][0])) if len(depth['asks']) > 0 else None
             logger.info('Actual spread right now: {:f} {:f}', best_bid, best_ask)
-            if spread_bid > best_bid:
+            if best_bid is None or best_bid < spread_bid:
                 # place a bid at spread_bid
                 min_amount = self.respect_order_size(min_order_amount, spread_bid)
                 amount = random_decimal(min_amount, min_amount*3, self.amount_step)
@@ -146,7 +146,7 @@ class MarketMakerBot:
                     amount=amount,
                     price=spread_bid
                 )
-            if spread_ask < best_ask:
+            if best_ask is None or best_ask > spread_ask:
                 # place an ask at spread_ask
                 min_amount = self.respect_order_size(min_order_amount, spread_ask)
                 amount = random_decimal(min_amount, min_amount*3, self.amount_step)
