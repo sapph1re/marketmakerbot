@@ -27,15 +27,15 @@ def random_decimal(minimum, maximum, step):
 
 
 class MarketMakerBot:
-    def __init__(self, currency_pair):
+    def __init__(self):
         self.api = APIClient()
-        self.currency_pair = currency_pair
+        self.currency_pair = config.get('MarketMaker', 'CurrencyPair')
         self.check_binance = True
 
         self.min_order_size = config.getdecimal('MarketMaker', 'MinOrderSize')
         self.amount_step = config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
 
-        logger.info('Market Maker Bot started')
+        logger.info('Market Maker Bot started at {}', self.currency_pair)
         self.stop_event_orderbook = self.generate_random_orderbook()
         # bot will start making trades <StartTradesDelay> seconds after it started placing orders
         time.sleep(config.getint('MarketMaker', 'StartTradesDelay'))
@@ -340,6 +340,6 @@ class MarketMakerBot:
 
 
 if __name__ == '__main__':
-    bot = MarketMakerBot(config.get('MarketMaker', 'CurrencyPair'))
+    bot = MarketMakerBot()
     while 1:
         time.sleep(1)
