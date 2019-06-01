@@ -2,8 +2,12 @@ import random
 import time
 import requests
 import argparse
-
 from config import config
+from helper import run_repeatedly, run_at_random_intervals
+from decimal import Decimal
+from api_client import APIClient
+from custom_logging import get_logger
+logger = get_logger(__name__)
 
 ap = argparse.ArgumentParser()
 ap.add_argument('-c', dest='config_file')
@@ -14,12 +18,6 @@ if config_file is None:
     config_file = 'config.ini'
 
 config.read(config_file)
-
-from helper import run_repeatedly, run_at_random_intervals
-from api_client import APIClient
-from decimal import Decimal
-from custom_logging import get_logger
-logger = get_logger(__name__)
 
 
 def random_decimal(minimum, maximum, step):
