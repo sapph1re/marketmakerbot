@@ -202,29 +202,6 @@ class MarketMakerBot:
                         )
                         # place more orders until target orderbook volume is reached
                         volume_to_add -= amount
-                if volume_to_add < 0:
-                    while volume_to_add < 0:
-                        found = False
-                        active_orders = self.api.my_open_orders()
-                        for order in active_orders:
-                            if order['symbol'] != self.currency_pair:
-                                continue
-                            order_amount = Decimal(str(order['amount']))
-                            if order_amount < -volume_to_add:
-                                found = True
-                                logger.info(
-                                    'Removing random order: {} {} {} {} @ {:f} (#{})',
-                                    order['type'], order['info']['side'], order['amount'],
-                                    order['symbol'], Decimal(str(order['price'])), order['id']
-                                )
-                                self.api.order_remove(
-                                    currency_pair=self.currency_pair,
-                                    order_id=order['id'],
-                                    side=order['info']['side']
-                                )
-                                volume_to_add += order_amount
-                        if not found:
-                            break
 
             # check total volume of own orders on each side
             my_bids_volume = Decimal(0)
