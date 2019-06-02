@@ -175,12 +175,14 @@ class MarketMakerBot:
                 volume_to_add = target_orderbook_volume - orderbook_volume
                 if volume_to_add > min_order_amount:
                     while volume_to_add > min_order_amount:
-                        if side == 'bids':
-                            order_side = 'buy'
-                        elif side == 'asks':
-                            order_side = 'sell'
                         # calculate the price range to operate within
                         price_min, price_max = self.calculate_price_range(side, target_price_range, price_step)
+                        if side == 'bids':
+                            order_side = 'buy'
+                            price_max = spread_bid  # don't go above our spread
+                        elif side == 'asks':
+                            order_side = 'sell'
+                            price_min = spread_ask  # don't go below our spread
                         # choose a random price within the range
                         price = random_decimal(price_min, price_max, price_step)
                         # choose a random amount
