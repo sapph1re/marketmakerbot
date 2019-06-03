@@ -2,6 +2,7 @@ import random
 import time
 import requests
 import argparse
+import ccxt
 from config import config
 from helper import run_repeatedly, run_at_random_intervals
 from decimal import Decimal
@@ -127,132 +128,135 @@ class MarketMakerBot:
         min_order_amount = config.getdecimal('MarketMaker', 'OrderbookMinOrderAmount')
 
         def maintain_orders():
-            # maintain the spread
-            spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
-            logger.info('Calculated spread levels: {:f} {:f}', spread_bid, spread_ask)
-            depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
-            best_bid = Decimal(str(depth['bids'][0][0])) if len(depth['bids']) > 0 else None
-            best_ask = Decimal(str(depth['asks'][0][0])) if len(depth['asks']) > 0 else None
-            logger.info('Actual spread right now: {:f} {:f}', best_bid, best_ask)
-            if best_bid is None or best_bid < spread_bid:
-                # place a bid at spread_bid
-                min_amount = self.respect_order_size(min_order_amount, spread_bid)
-                amount = random_decimal(min_amount, min_amount*3, self.amount_step)
-                logger.info('Placing spread bid: {} @ {:f}', amount, spread_bid)
-                self.api.order_create(
-                    currency_pair=self.currency_pair,
-                    order_type='limit',
-                    side='buy',
-                    amount=amount,
-                    price=spread_bid
-                )
-            if best_ask is None or best_ask > spread_ask:
-                # place an ask at spread_ask
-                min_amount = self.respect_order_size(min_order_amount, spread_ask)
-                amount = random_decimal(min_amount, min_amount*3, self.amount_step)
-                logger.info('Placing spread ask: {} @ {:f}', amount, spread_ask)
-                self.api.order_create(
-                    currency_pair=self.currency_pair,
-                    order_type='limit',
-                    side='sell',
-                    amount=amount,
-                    price=spread_ask
-                )
-            logger.info('Checking orderbook volume...')
-            # get the orderbook now
-            depth = self.api.depth(currency_pair=self.currency_pair, limit=100)
-            # processing randomly first bids then asks or first asks then bids
-            for side in random.choice([['bids', 'asks'], ['asks', 'bids']]):
-                # check orderbook volume
-                orderbook_volume = 0
-                for level in depth[side]:
-                    orderbook_volume += Decimal(str(level[1]))
-                if orderbook_volume >= max_orderbook_volume:
-                    continue
-                # if volume is not enough place some orders
-                target_orderbook_volume = random_decimal(min_orderbook_volume, max_orderbook_volume, self.amount_step)
-                logger.debug('Target random orderbook volume ({}): {}', side, target_orderbook_volume)
-                volume_to_add = target_orderbook_volume - orderbook_volume
-                if volume_to_add > min_order_amount:
-                    while volume_to_add > min_order_amount:
-                        # calculate the price range to operate within
-                        price_min, price_max = self.calculate_price_range(side, target_price_range, price_step)
-                        if side == 'bids':
-                            order_side = 'buy'
-                            price_max = spread_bid  # don't go above our spread
-                        elif side == 'asks':
-                            order_side = 'sell'
-                            price_min = spread_ask  # don't go below our spread
-                        # choose a random price within the range
-                        price = random_decimal(price_min, price_max, price_step)
-                        # choose a random amount
-                        min_amount = self.respect_order_size(min_order_amount, price)
-                        if volume_to_add <= min_amount:
-                            amount = min_amount
-                        else:
-                            amount = random_decimal(min_amount, volume_to_add, self.amount_step)
-                        # place the order
-                        logger.info('Creating random order: {} {} @ {:f}', order_side, amount, price)
-                        self.api.order_create(
-                            currency_pair=self.currency_pair,
-                            order_type='limit',
-                            side=order_side,
-                            amount=amount,
-                            price=price
-                        )
-                        # place more orders until target orderbook volume is reached
-                        volume_to_add -= amount
+            try:
+                # maintain the spread
+                spread_bid, spread_ask = self.calculate_spread_levels(max_spread, price_step)
+                logger.info('Calculated spread levels: {:f} {:f}', spread_bid, spread_ask)
+                depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
+                best_bid = Decimal(str(depth['bids'][0][0])) if len(depth['bids']) > 0 else None
+                best_ask = Decimal(str(depth['asks'][0][0])) if len(depth['asks']) > 0 else None
+                logger.info('Actual spread right now: {:f} {:f}', best_bid, best_ask)
+                if best_bid is None or best_bid < spread_bid:
+                    # place a bid at spread_bid
+                    min_amount = self.respect_order_size(min_order_amount, spread_bid)
+                    amount = random_decimal(min_amount, min_amount*3, self.amount_step)
+                    logger.info('Placing spread bid: {} @ {:f}', amount, spread_bid)
+                    self.api.order_create(
+                        currency_pair=self.currency_pair,
+                        order_type='limit',
+                        side='buy',
+                        amount=amount,
+                        price=spread_bid
+                    )
+                if best_ask is None or best_ask > spread_ask:
+                    # place an ask at spread_ask
+                    min_amount = self.respect_order_size(min_order_amount, spread_ask)
+                    amount = random_decimal(min_amount, min_amount*3, self.amount_step)
+                    logger.info('Placing spread ask: {} @ {:f}', amount, spread_ask)
+                    self.api.order_create(
+                        currency_pair=self.currency_pair,
+                        order_type='limit',
+                        side='sell',
+                        amount=amount,
+                        price=spread_ask
+                    )
+                logger.info('Checking orderbook volume...')
+                # get the orderbook now
+                depth = self.api.depth(currency_pair=self.currency_pair, limit=100)
+                # processing randomly first bids then asks or first asks then bids
+                for side in random.choice([['bids', 'asks'], ['asks', 'bids']]):
+                    # check orderbook volume
+                    orderbook_volume = 0
+                    for level in depth[side]:
+                        orderbook_volume += Decimal(str(level[1]))
+                    if orderbook_volume >= max_orderbook_volume:
+                        continue
+                    # if volume is not enough place some orders
+                    target_orderbook_volume = random_decimal(min_orderbook_volume, max_orderbook_volume, self.amount_step)
+                    logger.debug('Target random orderbook volume ({}): {}', side, target_orderbook_volume)
+                    volume_to_add = target_orderbook_volume - orderbook_volume
+                    if volume_to_add > min_order_amount:
+                        while volume_to_add > min_order_amount:
+                            # calculate the price range to operate within
+                            price_min, price_max = self.calculate_price_range(side, target_price_range, price_step)
+                            if side == 'bids':
+                                order_side = 'buy'
+                                price_max = spread_bid  # don't go above our spread
+                            elif side == 'asks':
+                                order_side = 'sell'
+                                price_min = spread_ask  # don't go below our spread
+                            # choose a random price within the range
+                            price = random_decimal(price_min, price_max, price_step)
+                            # choose a random amount
+                            min_amount = self.respect_order_size(min_order_amount, price)
+                            if volume_to_add <= min_amount:
+                                amount = min_amount
+                            else:
+                                amount = random_decimal(min_amount, volume_to_add, self.amount_step)
+                            # place the order
+                            logger.info('Creating random order: {} {} @ {:f}', order_side, amount, price)
+                            self.api.order_create(
+                                currency_pair=self.currency_pair,
+                                order_type='limit',
+                                side=order_side,
+                                amount=amount,
+                                price=price
+                            )
+                            # place more orders until target orderbook volume is reached
+                            volume_to_add -= amount
 
-            # check total volume of own orders on each side
-            my_bids_volume = Decimal(0)
-            my_asks_volume = Decimal(0)
-            lowest_bid_order = None
-            lowest_bid_price = None
-            highest_ask_order = None
-            highest_ask_price = None
-            active_orders = self.api.my_open_orders()
-            for order in active_orders:
-                if order['symbol'] != self.currency_pair:
-                    continue
-                order_amount = Decimal(str(order['amount']))
-                order_price = Decimal(str(order['price']))
-                if order['info']['side'] == 'BUY':
-                    my_bids_volume += order_amount
-                    if lowest_bid_price is None or order_price < lowest_bid_price:
-                        lowest_bid_order = order
-                        lowest_bid_price = order_price
-                elif order['info']['side'] == 'SELL':
-                    my_asks_volume += order_amount
-                    if highest_ask_price is None or order_price > highest_ask_price:
-                        highest_ask_order = order
-                        highest_ask_price = order_price
-            # if we have too much volume on orders, cancel the farthest orders to free the funds
-            if my_bids_volume > max_orderbook_volume:
-                # too much volume on bids, remove the lowest bid
-                logger.info(
-                    'Removing lowest bid: {} {} @ {:f}',
-                    lowest_bid_order['info']['side'],
-                    Decimal(str(lowest_bid_order['amount'])),
-                    Decimal(str(lowest_bid_order['price']))
-                )
-                self.api.order_remove(
-                    currency_pair=self.currency_pair,
-                    order_id=lowest_bid_order['id'],
-                    side=lowest_bid_order['info']['side']
-                )
-            if my_asks_volume > max_orderbook_volume:
-                # too much volume on asks, remove the highest ask
-                logger.info(
-                    'Removing highest ask: {} {} @ {:f}',
-                    highest_ask_order['info']['side'],
-                    Decimal(str(highest_ask_order['amount'])),
-                    Decimal(str(highest_ask_order['price']))
-                )
-                self.api.order_remove(
-                    currency_pair=self.currency_pair,
-                    order_id=highest_ask_order['id'],
-                    side=highest_ask_order['info']['side']
-                )
+                # check total volume of own orders on each side
+                my_bids_volume = Decimal(0)
+                my_asks_volume = Decimal(0)
+                lowest_bid_order = None
+                lowest_bid_price = None
+                highest_ask_order = None
+                highest_ask_price = None
+                active_orders = self.api.my_open_orders()
+                for order in active_orders:
+                    if order['symbol'] != self.currency_pair:
+                        continue
+                    order_amount = Decimal(str(order['amount']))
+                    order_price = Decimal(str(order['price']))
+                    if order['info']['side'] == 'BUY':
+                        my_bids_volume += order_amount
+                        if lowest_bid_price is None or order_price < lowest_bid_price:
+                            lowest_bid_order = order
+                            lowest_bid_price = order_price
+                    elif order['info']['side'] == 'SELL':
+                        my_asks_volume += order_amount
+                        if highest_ask_price is None or order_price > highest_ask_price:
+                            highest_ask_order = order
+                            highest_ask_price = order_price
+                # if we have too much volume on orders, cancel the farthest orders to free the funds
+                if my_bids_volume > max_orderbook_volume:
+                    # too much volume on bids, remove the lowest bid
+                    logger.info(
+                        'Removing lowest bid: {} {} @ {:f}',
+                        lowest_bid_order['info']['side'],
+                        Decimal(str(lowest_bid_order['amount'])),
+                        Decimal(str(lowest_bid_order['price']))
+                    )
+                    self.api.order_remove(
+                        currency_pair=self.currency_pair,
+                        order_id=lowest_bid_order['id'],
+                        side=lowest_bid_order['info']['side']
+                    )
+                if my_asks_volume > max_orderbook_volume:
+                    # too much volume on asks, remove the highest ask
+                    logger.info(
+                        'Removing highest ask: {} {} @ {:f}',
+                        highest_ask_order['info']['side'],
+                        Decimal(str(highest_ask_order['amount'])),
+                        Decimal(str(highest_ask_order['price']))
+                    )
+                    self.api.order_remove(
+                        currency_pair=self.currency_pair,
+                        order_id=highest_ask_order['id'],
+                        side=highest_ask_order['info']['side']
+                    )
+            except ccxt.errors.BaseError as e:
+                logger.error('Exchange API error: {}', e)
 
         # launch it
         return run_repeatedly(maintain_orders, interval, 'Orderbook-Generator')
@@ -268,38 +272,41 @@ class MarketMakerBot:
         min_price = config.getdecimal('MarketMaker', 'TradeMinPrice')
 
         def make_a_trade():
-            interval_ev = (max_interval + min_interval) / 2
-            amount_ev = min_volume_24h * interval_ev / (24*60*60)
-            amount = Decimal(
-                random.normalvariate(amount_ev, amount_deviation*amount_ev)
-            )
-            if amount < min_amount:
-                amount = min_amount
-            elif amount > max_amount:
-                amount = max_amount
-            amount = amount.quantize(self.amount_step)
-            side = random.choice(['buy', 'sell'])
-            # find the nearest price to execute a trade
-            depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
-            depth_side = {'buy': 'asks', 'sell': 'bids'}[side]
-            best_price = Decimal(str(depth[depth_side][0][0]))
-            # check the price limits
-            if not min_price <= best_price <= max_price:
-                logger.error('Best price {:f} is beyond the limits: {:f} {:f}', best_price, min_price, max_price)
-                return
-            amount = self.respect_order_size(amount, best_price)
-            # make a trade
-            logger.info('Random trade: {} {} @ {:f} IOC', side, amount, best_price)
-            result = self.api.order_create(
-                currency_pair=self.currency_pair,
-                order_type='limit',
-                side=side,
-                amount=amount,
-                price=best_price,
-                params={'timeInForce': 'IOC'}
-            )
-            if result is None:
-                logger.error('Failed to make a random trade')
+            try:
+                interval_ev = (max_interval + min_interval) / 2
+                amount_ev = min_volume_24h * interval_ev / (24*60*60)
+                amount = Decimal(
+                    random.normalvariate(amount_ev, amount_deviation*amount_ev)
+                )
+                if amount < min_amount:
+                    amount = min_amount
+                elif amount > max_amount:
+                    amount = max_amount
+                amount = amount.quantize(self.amount_step)
+                side = random.choice(['buy', 'sell'])
+                # find the nearest price to execute a trade
+                depth = self.api.depth(currency_pair=self.currency_pair, limit=1)
+                depth_side = {'buy': 'asks', 'sell': 'bids'}[side]
+                best_price = Decimal(str(depth[depth_side][0][0]))
+                # check the price limits
+                if not min_price <= best_price <= max_price:
+                    logger.error('Best price {:f} is beyond the limits: {:f} {:f}', best_price, min_price, max_price)
+                    return
+                amount = self.respect_order_size(amount, best_price)
+                # make a trade
+                logger.info('Random trade: {} {} @ {:f} IOC', side, amount, best_price)
+                result = self.api.order_create(
+                    currency_pair=self.currency_pair,
+                    order_type='limit',
+                    side=side,
+                    amount=amount,
+                    price=best_price,
+                    params={'timeInForce': 'IOC'}
+                )
+                if result is None:
+                    logger.error('Failed to make a random trade')
+            except ccxt.errors.BaseError as e:
+                logger.error('Exchange API error: {}', e)
 
         return run_at_random_intervals(
             make_a_trade, min_interval, max_interval, 'Trades-Generator'
