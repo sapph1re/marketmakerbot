@@ -1461,6 +1461,8 @@ class mandala (Exchange):
         }
 
     def sign(self, path, api='api', method='GET', params={}, headers=None, body=None):
+        if headers is None:
+            headers = {}
         url = self.implode_params(self.urls['api'], {
             'hostname': self.hostname,
         })
