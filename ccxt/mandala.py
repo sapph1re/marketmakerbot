@@ -1511,6 +1511,7 @@ class mandala (Exchange):
             elif method == 'GET':
                 if query:
                     url += '?' + self.urlencode(query)
+        headers.update({'apiKey': self.apiKey})
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response):
