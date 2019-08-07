@@ -37,9 +37,10 @@ class MarketMakerBot:
         self.amount_step = config.getdecimal('MarketMaker', 'OrderbookMinAmountStep')
 
         logger.info('Market Maker Bot started at {}', self.currency_pair)
-        self.stop_event_orderbook = self.generate_random_orderbook()
-        # bot will start making trades <StartTradesDelay> seconds after it started placing orders
-        time.sleep(config.getint('MarketMaker', 'StartTradesDelay'))
+        if config.get('MarketMaker', 'DisableLiquidity', fallback='no') != 'yes':
+            self.stop_event_orderbook = self.generate_random_orderbook()
+            # bot will start making trades <StartTradesDelay> seconds after it started placing orders
+            time.sleep(config.getint('MarketMaker', 'StartTradesDelay'))
         self.stop_event_trades = self.generate_random_trades()
 
     def calculate_price_range(self, side, target_price_range, min_price_step):
