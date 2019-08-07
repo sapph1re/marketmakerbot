@@ -89,7 +89,7 @@ class MarketMakerBot:
         # check reference price on Binance if it is present there
         if self.check_binance:
             try:
-                symbol = self.currency_pair.replace('/', '')
+                symbol = self.currency_pair.replace('/', '').replace('BCHBTC', 'BCHABCBTC')
                 r = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}').json()
                 if 'msg' in r and r['msg'] == 'Invalid symbol.':
                     logger.info('Symbol {} is not present on Binance', symbol)
